@@ -1,0 +1,578 @@
+import Foundation
+
+
+/// Manages a single game (one round of play)
+public final class GameManager {
+    public let players: [RoomPlayer]
+    public let gameMode: GameMode
+    public let level: Int
+    public let activeTeam: Int
+    public var teamLevels: [Int: Int]
+    public var onBroadcast: ((String, Data) -> Void)?
+
+    public private(set) var phase = GamePhase.waiting
+    public private(set) var hands: [[Card]] = [[], [], [], []]
+    public private(set) var currentTurn: Int = 0
+    public private(set) var lastHand: (playerIndex: Int, hand: Hand)?
+    public private(set) var passCount: Int = 0
+    public private(set) var winners: [Int] = []
+    public private(set) var roundActions: [Int: RoundAction] = [:]
+    public private(set) var tributeState = TributeState()
+    public private(set) var skillCards: [[SkillCard]] = [[], [], [], []]
+    public private(set) var skipNextTurn: [Bool] = [false, false, false, false]
+    public private(set) var history: [HistoryEntry] = []
+    public private(set) var currentRound: Int = 1
+
+    private var isActive = true
+    private var pendingTimers: [DispatchWorkItem] = []
+    private var prevWinners: [Int]
+    private var historyIdCounter = 0
+    private var newCardIds: [Int: [String]] = [:]
+
+    // MARK: - Init
+
+    public init(players: [RoomPlayer], gameMode: GameMode, teamLevels: [Int: Int], activeTeam: Int, prevWinners: [Int]) {
+        self.players = players
+        self.gameMode = gameMode
+        self.teamLevels = teamLevels
+        self.activeTeam = activeTeam
+        self.level = teamLevels[activeTeam] ?? 2
+        self.prevWinners = prevWinners
+    }
+
+    // MARK: - Start
+
+    public func start() {
+        isActive = true
+        phase = .dealing
+        history = []
+        historyIdCounter = 0
+
+        let deck = shuffleDeck(createDeck())
+        hands = [[], [], [], []]
+        for i in 0..<108 { hands[i % 4].append(deck[i]) }
+        hands = hands.map { updateCardProperties($0, level: level) }
+        hands = hands.map { sortCards($0, level: level) }
+
+        skipNextTurn = [false, false, false, false]
+        newCardIds = [:]
+
+        if gameMode == .skill { dealSkillCards() }
+
+        if !prevWinners.isEmpty {
+            initTributePhase()
+        } else {
+            currentTurn = 0
+            phase = .playing
+            passCount = 0
+            lastHand = nil
+        }
+        broadcastGameState()
+    }
+
+    // MARK: - Player actions
+
+    public func handlePlayHand(seatIndex: Int, cards: [Card]) {
+        guard phase == .playing, currentTurn == seatIndex else { return }
+        guard let hand = getHandType(cards, level: level) else {
+            emitError(seatIndex, "Invalid hand"); return
+        }
+
+        if let last = lastHand, last.playerIndex != seatIndex {
+            // Must beat or pass
+            if compareHands(hand, last.hand) <= 0 {
+                emitError(seatIndex, "Must play a larger hand or pass"); return
+            }
+        }
+
+        // Validate cards in hand
+        let handIds = Set(hands[seatIndex].map(\.id))
+        for c in cards {
+            guard handIds.contains(c.id) else { emitError(seatIndex, "Card not in hand"); return }
+        }
+
+        // Remove played cards
+        let playedIds = Set(cards.map(\.id))
+        hands[seatIndex].removeAll { playedIds.contains($0.id) }
+
+        lastHand = (seatIndex, hand)
+        passCount = 0
+        roundActions[seatIndex] = RoundAction(type: "play", cards: cards, hand: hand)
+
+        let playerName = players[seatIndex].name
+        addHistory(.play, "\(playerName) played \(handDescription(hand))", seatIndex)
+
+        // Check win
+        if hands[seatIndex].isEmpty {
+            winners.append(seatIndex)
+            addHistory(.playerFinish, "\(playerName) finished #\(winners.count)", seatIndex)
+            if winners.count >= 3 { endGame(); return }
+        }
+
+        advanceTurn()
+        broadcastGameState()
+    }
+
+    public func handlePass(seatIndex: Int) {
+        guard phase == .playing, currentTurn == seatIndex else { return }
+        guard lastHand != nil, lastHand?.playerIndex != seatIndex else {
+            emitError(seatIndex, "Cannot pass on free turn"); return
+        }
+
+        passCount += 1
+        roundActions[seatIndex] = RoundAction(type: "pass")
+        addHistory(.pass, "\(players[seatIndex].name) passed", seatIndex)
+
+        // Reset round if 3 consecutive passes
+        if passCount >= 3 {
+            passCount = 0
+            lastHand = nil
+            roundActions = [:]
+        }
+
+        advanceTurn()
+        broadcastGameState()
+    }
+
+    public func handleTribute(seatIndex: Int, cards: [Card]) {
+        guard phase == .tribute, let idx = tributeState.pendingTributes.firstIndex(where: { $0.from == seatIndex && $0.card == nil }) else { return }
+        guard cards.count == 1 else { return }
+
+        let hand = hands[seatIndex]
+        let largest = getLargestCard(hand, level: level)
+        let valPlay = getLogicValue(rank: cards[0].rank, level: level)
+        let valMax = getLogicValue(rank: largest.rank, level: level)
+        guard valPlay >= valMax else { emitError(seatIndex, "Must pay the largest card"); return }
+
+        tributeState.pendingTributes[idx].card = cards[0]
+        hands[seatIndex].removeAll { $0.id == cards[0].id }
+        let to = tributeState.pendingTributes[idx].to
+        hands[to].append(cards[0])
+        hands[to] = sortCards(hands[to], level: level)
+
+        checkTributeDone()
+        broadcastGameState()
+    }
+
+    public func handleReturnTribute(seatIndex: Int, cards: [Card]) {
+        guard phase == .returnTribute, let idx = tributeState.pendingReturns.firstIndex(where: { $0.from == seatIndex && $0.card == nil }) else { return }
+        guard cards.count == 1 else { return }
+        tributeState.pendingReturns[idx].card = cards[0]
+        hands[seatIndex].removeAll { $0.id == cards[0].id }
+        let to = tributeState.pendingReturns[idx].to
+        hands[to].append(cards[0])
+        hands[to] = sortCards(hands[to], level: level)
+        checkReturnDone()
+        broadcastGameState()
+    }
+
+    public func handleUseSkill(seatIndex: Int, skillId: String, targetSeat: Int?) {
+        guard isActive, gameMode == .skill, phase == .playing, currentTurn == seatIndex else { return }
+        guard let skillIdx = skillCards[seatIndex].firstIndex(where: { $0.id == skillId }) else { return }
+        let skill = skillCards[seatIndex][skillIdx]
+
+        let needsTarget: Set<SkillCardType> = [.steal, .discard, .skip]
+        if needsTarget.contains(skill.type) {
+            guard let ts = targetSeat, ts != seatIndex, !hands[ts].isEmpty else { return }
+        }
+
+        guard applySkillEffect(skill.type, user: seatIndex, target: targetSeat) else { return }
+        skillCards[seatIndex].remove(at: skillIdx)
+        addHistory(.skillUse, "\(players[seatIndex].name) used \(skill.type.displayName)", seatIndex)
+        broadcastGameState()
+    }
+
+    // MARK: - Bot turn
+
+    public func executeBotTurn(seatIndex: Int) {
+        guard isActive, phase == .playing, currentTurn == seatIndex else { return }
+        guard !hands[seatIndex].isEmpty else { advanceTurn(); broadcastGameState(); return }
+
+        // Maybe use skill
+        if gameMode == .skill, let skill = decideBotSkill(seatIndex) {
+            handleUseSkill(seatIndex: seatIndex, skillId: skill.id, targetSeat: skill.targetSeat)
+            // Schedule card play after skill
+            schedule(after: 1) { [weak self] in self?.executeBotTurn(seatIndex: seatIndex) }
+            return
+        }
+
+        var ctx = BotGameContext()
+        ctx.mySeat = seatIndex
+        ctx.winners = winners
+        ctx.teammateWon = winners.contains(where: { $0 % 2 == seatIndex % 2 && $0 != seatIndex })
+        ctx.opponentCardCounts = (0..<4).map { $0 % 2 != seatIndex % 2 && !winners.contains($0) ? hands[$0].count : -1 }
+        let bot = Bot(cards: hands[seatIndex], level: level, context: ctx)
+        if let move = bot.decideMove(target: lastHand?.hand) {
+            handlePlayHand(seatIndex: seatIndex, cards: move)
+        } else {
+            handlePass(seatIndex: seatIndex)
+        }
+    }
+
+    // MARK: - Lifecycle
+
+    public func destroy() {
+        isActive = false
+        for t in pendingTimers { t.cancel() }
+        pendingTimers = []
+        onBroadcast = nil
+    }
+
+    // MARK: - Private
+
+    private func advanceTurn() {
+        // Skip finished players
+        var next = (currentTurn + 1) % 4
+        while winners.contains(next) { next = (next + 1) % 4 }
+        currentTurn = next
+
+        // Handle skip effect
+        if skipNextTurn[currentTurn] {
+            skipNextTurn[currentTurn] = false
+            advanceTurn()
+        }
+    }
+
+    private func endGame() {
+        phase = .score
+        broadcastGameState()
+        if let data = try? JSONEncoder().encode(GameOverData(winners: winners)) {
+            onBroadcast?("gameOver", data)
+        }
+
+    private func initTributePhase() {
+        guard prevWinners.count == 4 else { phase = .playing; currentTurn = activeTeam; return }
+        let p1 = prevWinners[0], p2 = prevWinners[1], p3 = prevWinners[2], p4 = prevWinners[3]
+        let sameTeam = { (a: Int, b: Int) in a % 2 == b % 2 }
+
+        // Anti-tribute (抗贡): 2 big jokers in losing team
+        let isDouble = sameTeam(p1, p2)
+        let losingTeam: [Int] = isDouble ? [p3, p4] : [p4]
+
+        // Single win check
+        if !isDouble {
+            if sameTeam(p1, p4) { // Tie — no tribute
+                phase = .playing; currentTurn = p1; return
+            }
+        }
+
+        let bigJokerCount = losingTeam.reduce(0) { $0 + hands[$1].filter { $0.rank == .bigJoker }.count }
+        if bigJokerCount == 2 {
+            phase = .playing; currentTurn = p1; return // 抗贡成功
+        }
+
+        tributeState = TributeState()
+        if isDouble {
+            tributeState.pendingTributes = [
+                TributeItem(from: p4, to: p1),
+                TributeItem(from: p3, to: p2)
+            ]
+        } else {
+            tributeState.pendingTributes = [TributeItem(from: p4, to: p1)]
+        }
+        phase = .tribute
+        processAutoTributes()
+    }
+
+    private func processAutoTributes() {
+        for item in tributeState.pendingTributes where players[item.from].isBot {
+            let hand = hands[item.from]
+            let largest = getLargestCard(hand, level: level)
+            guard let idx = tributeState.pendingTributes.firstIndex(where: { $0.from == item.from }) else { continue }
+            tributeState.pendingTributes[idx].card = largest
+            hands[item.from].removeAll { $0.id == largest.id }
+            hands[item.to].append(largest)
+            hands[item.to] = sortCards(hands[item.to], level: level)
+        }
+        checkTributeDone()
+    }
+
+    private func checkTributeDone() {
+        guard tributeState.pendingTributes.allSatisfy({ $0.card != nil }) else { return }
+        phase = .returnTribute
+        tributeState.pendingReturns = tributeState.pendingTributes.map { TributeItem(from: $0.to, to: $0.from) }
+
+        // Process auto returns for bots
+        for item in tributeState.pendingReturns where players[item.from].isBot {
+            let hand = hands[item.from]
+            let smallest = hand.last!
+            if let idx = tributeState.pendingReturns.firstIndex(where: { $0.from == item.from }) {
+                tributeState.pendingReturns[idx].card = smallest
+                hands[item.from].removeAll { $0.id == smallest.id }
+                hands[item.to].append(smallest)
+                hands[item.to] = sortCards(hands[item.to], level: level)
+            }
+        }
+        checkReturnDone()
+    }
+
+    private func checkReturnDone() {
+        guard tributeState.pendingReturns.allSatisfy({ $0.card != nil }) else { return }
+        phase = .playing
+        // Determine next starter: largest tribute payer goes first
+        if let next = tributeState.nextStartPlayer {
+            currentTurn = next
+        } else {
+            currentTurn = prevWinners.first ?? 0
+        }
+        tributeState = TributeState()
+        passCount = 0; lastHand = nil
+    }
+
+    private func broadcastGameState() {
+        for (idx, p) in players.enumerated() {
+            guard !p.isBot else { continue }
+            let state = GameState(
+                phase: phase.rawValue,
+                level: level,
+                currentTurn: currentTurn,
+                ownHand: hands[idx],
+                otherHandSizes: hands.enumerated().map { $0.offset == idx ? hands[$0.offset].count : -1 }, // placeholder — real count sent separately
+                lastHand: lastHand,
+                roundActions: roundActions,
+                winners: winners,
+                tributeState: phase == .tribute || phase == .returnTribute ? tributeState : nil,
+                teamLevels: teamLevels,
+                activeTeam: activeTeam,
+                gameMode: gameMode.rawValue,
+                skillCards: skillCards[idx],
+                skipNextTurn: skipNextTurn,
+                newCardIds: newCardIds[idx] ?? [],
+                history: history,
+                currentRound: currentRound,
+                seatIndex: idx,
+                playerId: p.id
+            )
+            guard let data = try? JSONEncoder().encode(state) else { continue }
+            onBroadcast?("gameState", data)
+        }
+
+        // Schedule bot turn
+        let cp = players[currentTurn]
+        if cp.isBot, phase == .playing, winners.count < 3 {
+            let botSeat = currentTurn
+            schedule(after: 1.5) { [weak self] in
+                self?.executeBotTurn(seatIndex: botSeat)
+            }
+        }
+    }
+
+    // MARK: - Skill helpers
+
+    private func dealSkillCards() {
+        skillCards = [[], [], [], []]
+        var pool: [SkillCard] = []
+        for (_, type) in SkillCardType.allCases.enumerated() {
+            for j in 0..<2 { pool.append(SkillCard(id: "skill-\(type.rawValue)-\(j)", type: type)) }
+        }
+        pool.shuffle()
+        for i in 0..<4 {
+            skillCards[i] = Array(pool[(i * 2)..<(i * 2 + 2)])
+        }
+    }
+
+    private func applySkillEffect(_ type: SkillCardType, user: Int, target: Int?) -> Bool {
+        guard isActive else { return false }
+        switch type {
+        case .drawTwo:
+            let c1 = randomCard(), c2 = randomCard()
+            hands[user].append(contentsOf: [c1, c2])
+            hands[user] = sortCards(hands[user], level: level)
+            trackNewCards(user, [c1.id, c2.id])
+        case .steal:
+            guard let t = target, !hands[t].isEmpty else { return false }
+            let idx = Int(arc4random_uniform(UInt32(hands[t].count)))
+            let stolen = hands[t].remove(at: idx)
+            hands[user].append(stolen)
+            hands[user] = sortCards(hands[user], level: level)
+            trackNewCards(user, [stolen.id])
+        case .discard:
+            guard let t = target, !hands[t].isEmpty else { return false }
+            let idx = Int(arc4random_uniform(UInt32(hands[t].count)))
+            hands[t].remove(at: idx)
+        case .skip:
+            guard let t = target else { return false }
+            skipNextTurn[t] = true
+        case .harvest:
+            let active = (0..<4).filter { !hands[$0].isEmpty && !winners.contains($0) }
+            for seat in active {
+                let c = randomCard()
+                hands[seat].append(c)
+                hands[seat] = sortCards(hands[seat], level: level)
+                trackNewCards(seat, [c.id])
+            }
+        }
+        return true
+    }
+
+    private func decideBotSkill(_ seatIndex: Int) -> (id: String, targetSeat: Int?)? {
+        let skills = skillCards[seatIndex]
+        guard !skills.isEmpty else { return nil }
+        let myTeam = seatIndex % 2
+        let opponents = (0..<4).filter { $0 % 2 != myTeam && !hands[$0].isEmpty }
+        let mySize = hands[seatIndex].count
+
+        for skill in skills {
+            switch skill.type {
+            case .drawTwo where mySize < 10: return (skill.id, nil)
+            case .steal:
+                if let t = opponents.max(by: { hands[$0].count < hands[$1].count }), hands[t].count > 5 {
+                    return (skill.id, t)
+                }
+            case .discard:
+                if let t = opponents.first(where: { (1...5).contains(hands[$0].count) }) {
+                    return (skill.id, t)
+                }
+            case .skip:
+                if let t = opponents.first(where: { hands[$0].count <= 3 }) {
+                    return (skill.id, t)
+                }
+            case .harvest where mySize < 15: return (skill.id, nil)
+            default: break
+            }
+        }
+
+        if Double.random(in: 0...1) < 0.2, let first = skills.first {
+            let needsTarget: Set<SkillCardType> = [.steal, .discard, .skip]
+            if needsTarget.contains(first.type), let opp = opponents.first {
+                return (first.id, opp)
+            } else if !needsTarget.contains(first.type) {
+                return (first.id, nil)
+            }
+        }
+        return nil
+    }
+
+    private func randomCard() -> Card {
+        let suits: [Suit] = [.spades, .hearts, .clubs, .diamonds]
+        let ranks: [Rank] = [.two, .three, .four, .five, .six, .seven, .eight, .nine, .ten, .jack, .queen, .king, .ace]
+        if Double.random(in: 0...1) < 0.05 {
+            let isSmall = Double.random(in: 0...1) < 0.5
+            return Card(suit: .joker, rank: isSmall ? .smallJoker : .bigJoker, id: "gen-\(UUID().uuidString.prefix(8))")
+        }
+        let suit = suits.randomElement()!
+        let rank = ranks.randomElement()!
+        var c = Card(suit: suit, rank: rank, id: "gen-\(UUID().uuidString.prefix(8))")
+        if rank.rawValue == level { c.isLevelCard = true; if suit == .hearts { c.isWild = true } }
+        return c
+    }
+
+    // MARK: - Helpers
+
+    private func schedule(after seconds: Double, block: @escaping () -> Void) {
+        let item = DispatchWorkItem { [weak self] in
+            guard self?.isActive == true else { return }
+            block()
+        }
+        pendingTimers.append(item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: item)
+    }
+
+    private func trackNewCards(_ seat: Int, _ ids: [String]) {
+        newCardIds[seat, default: []].append(contentsOf: ids)
+        schedule(after: 2) { [weak self] in self?.newCardIds[seat] = [] }
+    }
+
+    private func emitError(_ seat: Int, _ msg: String) {
+        if let errData = try? JSONEncoder().encode(["message": msg, "seat": String(seat)]) {
+                onBroadcast?("error", errData)
+            }
+    }
+
+    private func addHistory(_ type: HistoryEventType, _ msg: String, _ seat: Int?) {
+        let entry = HistoryEntry(
+            id: "h\(historyIdCounter)", timestamp: Date().timeIntervalSince1970,
+            type: type, playerIndex: seat, playerName: seat.map { players[$0].name }, message: msg
+        )
+        historyIdCounter += 1
+        history.append(entry)
+    }
+}
+
+// MARK: - Supporting types
+
+public enum GamePhase: String, Codable {
+    case waiting, dealing, tribute, returnTribute, playing, score
+}
+
+public struct TributeItem: Codable {
+    public let from: Int
+    public let to: Int
+    public var card: Card?
+
+    public init(from: Int, to: Int, card: Card? = nil) {
+        self.from = from; self.to = to; self.card = card
+    }
+}
+
+public struct TributeState: Codable {
+    public var pendingTributes: [TributeItem] = []
+    public var pendingReturns: [TributeItem] = []
+    public var nextStartPlayer: Int?
+
+    public init() {}
+}
+
+public struct RoundAction: Codable {
+    public let type: String // "play" or "pass"
+    public var cards: [Card]?
+    public var hand: Hand?
+
+    public init(type: String, cards: [Card]? = nil, hand: Hand? = nil) {
+        self.type = type; self.cards = cards; self.hand = hand
+    }
+}
+
+public struct GameState: Codable {
+    public let phase: String
+    public let level: Int
+    public let currentTurn: Int
+    public let ownHand: [Card]
+    public let otherHandSizes: [Int]
+    public let lastHand: LastHandInfo?
+    public let roundActions: [String: RoundAction]
+    public let winners: [Int]
+    public let tributeState: TributeState?
+    public let teamLevels: [String: Int]
+    public let activeTeam: Int
+    public let gameMode: String
+    public let skillCards: [SkillCard]
+    public let skipNextTurn: [Bool]
+    public let newCardIds: [String]
+    public let history: [HistoryEntry]
+    public let currentRound: Int
+    public let seatIndex: Int
+    public let playerId: String
+
+    public init(phase: String, level: Int, currentTurn: Int, ownHand: [Card], otherHandSizes: [Int],
+                lastHand: (Int, Hand)?, roundActions: [Int: RoundAction], winners: [Int],
+                tributeState: TributeState?, teamLevels: [Int: Int], activeTeam: Int,
+                gameMode: String, skillCards: [SkillCard], skipNextTurn: [Bool],
+                newCardIds: [String], history: [HistoryEntry], currentRound: Int,
+                seatIndex: Int, playerId: String) {
+        self.phase = phase
+        self.level = level
+        self.currentTurn = currentTurn
+        self.ownHand = ownHand
+        self.otherHandSizes = otherHandSizes
+        self.lastHand = lastHand.map { LastHandInfo(playerIndex: $0.0, hand: $0.1) }
+        self.roundActions = Dictionary(uniqueKeysWithValues: roundActions.map { (String($0.key), $0.value) })
+        self.winners = winners
+        self.tributeState = tributeState
+        self.teamLevels = Dictionary(uniqueKeysWithValues: teamLevels.map { (String($0.key), $0.value) })
+        self.activeTeam = activeTeam
+        self.gameMode = gameMode
+        self.skillCards = skillCards
+        self.skipNextTurn = skipNextTurn
+        self.newCardIds = newCardIds
+        self.history = history
+        self.currentRound = currentRound
+        self.seatIndex = seatIndex
+        self.playerId = playerId
+    }
+}
+
+public struct LastHandInfo: Codable {
+    public let playerIndex: Int
+    public let hand: Hand
+}

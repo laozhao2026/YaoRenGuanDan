@@ -1,0 +1,43 @@
+name: GuanDanApp
+options:
+  bundleIdPrefix: com.guandan
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "26.5"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "YES"
+    INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: "YES"
+    INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+    INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationLandscapeRight"
+    INFOPLIST_KEY_CFBundleDisplayName: "摇人掼蛋"
+
+targets:
+  GuanDanApp:
+    type: application
+    platform: iOS
+    sources:
+      - Sources/GameCore
+      - Sources/GameServer
+      - Sources/GuanDanApp
+    resources:
+      - path: Resources/Assets.xcassets
+      - path: Resources/WebClient
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - sdk: WebKit.framework
+      - sdk: Network.framework
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "YES"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        PRODUCT_BUNDLE_IDENTIFIER: com.guandan.localgame
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "掼蛋需要局域网权限来让其他玩家通过浏览器加入游戏。"
+        INFOPLIST_KEY_UIRequiredDeviceCapabilities: "arm64"
+        INFOPLIST_KEY_UIBackgroundModes:
+          - "fetch"

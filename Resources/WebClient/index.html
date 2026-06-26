@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>摇人掼蛋</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Lobby -->
+    <div id="lobby" class="screen active">
+      <h1>老赵摇人来掼蛋 Ver 1.0 beta</h1>
+      <div class="card-panel">
+        <label>玩家名</label>
+        <input id="nameInput" type="text" placeholder="输入你的名字" maxlength="10" inputmode="text" autocomplete="off" autocorrect="off">
+        <button id="joinBtn" class="primary">加入游戏</button>
+      </div>
+      <div class="card-panel" id="roomInfo" style="display:none">
+        <h2>房间大厅</h2>
+        <div id="seatGrid" class="seat-grid"></div>
+        <div class="btn-row">
+          
+          <button id="startBtn" class="danger">开始游戏</button>
+        </div>
+        <div class="mode-switch">
+          <span>模式：</span>
+          <button id="modeNormal" class="active">普通</button>
+          <button id="modeSkill">技能</button>
+        </div>
+      </div>
+      <div id="chatBox" class="chat-box" style="display:none">
+        <div id="chatMessages" class="chat-messages"></div>
+        <div class="chat-input-row">
+          <input id="chatInput" type="text" placeholder="聊天..." maxlength="50">
+          <button id="chatSendBtn">发送</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game -->
+    <div id="game" class="screen">
+      <div class="game-header">
+        <span style="color:#ffd700;font-weight:700;font-size:13px">老赵摇人打掼蛋 Ver 1.0 beta</span>
+        <span id="roundLabel">第1局</span>
+        <span id="levelLabel">打2</span>
+        <span id="teamLabel">Team</span>
+        <button id="gameBackBtn">返回</button>
+      </div>
+      <div class="game-board" id="gameBoard">
+        <div class="player-area" id="area-player2">
+          <span class="player-tag" id="tag-player2">Bot 2</span>
+          <span class="card-count" id="count-player2"></span>
+        </div>
+        <div class="center-row">
+          <div class="player-area" id="area-player1">
+            <span class="player-tag" id="tag-player1">Bot 1</span>
+            <span class="card-count" id="count-player1"></span>
+          </div>
+          <div class="play-zone" id="playZone">
+            <div id="lastPlayInfo">等待出牌...</div>
+            <div id="tributeUI" style="display:none"></div>
+          </div>
+          <div class="player-area" id="area-player3">
+            <span class="player-tag" id="tag-player3">Bot 3</span>
+            <span class="card-count" id="count-player3"></span>
+          </div>
+        </div>
+        <div class="player-area" id="area-player0">
+          <span class="player-tag" id="tag-player0">You</span>
+          <span class="card-count" id="count-player0"></span>
+        </div>
+      </div>
+      <div class="my-hand" id="myHand"></div>
+      <div id="turnHint" style="text-align:center;font-size:12px;color:#ffd700;padding:2px;flex-shrink:0;min-height:18px"></div>
+      <div class="action-bar" id="actionBar">
+        <button id="playBtn" class="primary" onclick="window._playCards()">出牌</button>
+        <button id="passBtn" onclick="window._passTurn()">不出</button>
+        <button id="hintBtn" onclick="window._hintPlay()">提示</button>
+      </div>
+      <div id="skillBar" style="display:none" class="skill-bar"></div>
+      <div id="gameOverlay" class="overlay" style="display:none"></div>
+    </div>
+
+    </div>
+  </div>
+
+  <script src="/js/game.js"></script>
+</body>
+</html>
