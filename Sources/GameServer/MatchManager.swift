@@ -42,7 +42,7 @@ public final class MatchManager: @unchecked Sendable {
             activeTeam: activeTeam,
             prevWinners: lastWinners
         )
-        game.onBroadcast = { [weak self] event, data in
+        game.onBroadcast = { [weak self] (event: String, data: Data) in
             self?.onBroadcast?(event, data)
             if event == "gameOver" {
                 // Parse winners from data
@@ -52,16 +52,19 @@ public final class MatchManager: @unchecked Sendable {
             }
         }
         currentGame = game
-        // Forward GameManager broadcasts through MatchManager's callback chain
-        game.onBroadcast = { [weak self] event, data in
-            self?.onBroadcast?(event, data)
-        }
         game.start()
     }
 
     private func handleGameEnd(winners: [Int]) {
-        guard winners.count == 4 else { return }
-        let (winningTeam, levelIncrease) = calculateLevelUp(winners)
+        var allWinners = winners
+        // Fill 4th place if only 3 winners (game can end when 3 finish)
+        if winners.count == 3 {
+            if let last = [0,1,2,3].first(where: { !winners.contains($0) }) {
+                allWinners.append(last)
+            }
+        }
+        guard allWinners.count == 4 else { return }
+        let (winningTeam, levelIncrease) = calculateLevelUp(allWinners)
 
         let oldLevel = teamLevels[winningTeam]!
         teamLevels[winningTeam] = min(oldLevel + levelIncrease, 14)
@@ -70,6 +73,27 @@ public final class MatchManager: @unchecked Sendable {
         if winningTeam != activeTeam {
             activeTeam = winningTeam
         }
+
+        // Broadcast game result (convert Int keys to String for JSONSerialization)
+        let strLevels: [String: Int] = [
+            "0": teamLevels[0]!,
+            "1": teamLevels[1]!
+        ]
+        let winnerNames = winners.map { idx -> String in
+            let p = players.first(where: { $0.seatIndex == idx })
+            return p?.name ?? "Bot \(idx)"
+        }
+        broadcast(event: "gameResult", data: [
+            "winners": allWinners,
+            "winnerNames": winnerNames,
+            "winningTeam": winningTeam,
+            "levelFrom": oldLevel,
+            "levelTo": newLevel,
+            "levelIncrease": levelIncrease,
+            "oldLevels": strLevels,
+            "activeTeam": activeTeam,
+            "hasTribute": lastWinners.count == 4
+        ] as [String : Any])
 
         if newLevel == 14 {
             consecutiveWins[winningTeam, default: 0] += 1
@@ -82,7 +106,7 @@ public final class MatchManager: @unchecked Sendable {
                 broadcast(event: "matchOver", data: [
                     "winningTeam": winningTeam,
                     "winners": winnerNames,
-                    "finalLevels": teamLevels
+                    "finalLevels": strLevels
                 ] as [String: Any])
                 return
             }
@@ -90,8 +114,8 @@ public final class MatchManager: @unchecked Sendable {
             consecutiveWins = [0: 0, 1: 0]
         }
 
-        lastWinners = winners
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+        lastWinners = allWinners
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
             self?.startNextGame()
         }
     }

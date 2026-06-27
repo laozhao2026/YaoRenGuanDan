@@ -85,6 +85,7 @@ struct WebView: UIViewRepresentable {
 
     class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+#if os(iOS)
             let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler() })
             if let vc = webView.window?.rootViewController {
@@ -92,6 +93,9 @@ struct WebView: UIViewRepresentable {
             } else {
                 completionHandler()
             }
+#else
+            completionHandler()
+#endif
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

@@ -14,30 +14,32 @@
 		38580B2517BC138A8184B68E /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5410BD5E893DF1BBE9F5962 /* App.swift */; };
 		393BB3586D286D01EA410103 /* Deck.swift in Sources */ = {isa = PBXBuildFile; fileRef = A72FEFF1FD2E8B6AD0B012EA /* Deck.swift */; };
 		50F2A25105C8AF0CEFC67EE1 /* MatchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35D4EFB49F1DD132CC3DC8DA /* MatchManager.swift */; };
-		680B960B0D8F958400F47955 /* GameManager.swift.bak in Resources */ = {isa = PBXBuildFile; fileRef = 32E06CF35DD043CA16DAB15B /* GameManager.swift.bak */; };
 		77A08AD1C4D1136ED414BFDE /* Bot.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7DB4EF431AC861DE9C3A0C0 /* Bot.swift */; };
+		A11B2C3D4E5F6789ABCD0001 /* Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A11B2C3D4E5F6789ABCD0002 /* Resources/Assets.xcassets */; };
 		A3E0BDF1B873C58C398B9EC4 /* GameManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 395D71EF8236CC5ECFB8CCC7 /* GameManager.swift */; };
 		C307621E88FCC203B508EDAB /* HTTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3705BEE0EE9D16BA93260DF /* HTTPServer.swift */; };
 		C751956E9AEA9B3FBDE50DF1 /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0C20E958CF8A0842A040C854 /* Network.framework */; };
 		C8E64248050CD3C76DDE7013 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FD1A770ED845172FAF074585 /* WebKit.framework */; };
+		DBD8420CDA4AE4A4846E0948 /* GameLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FB83B4E0F2019D8C83FCF6 /* GameLogger.swift */; };
 		EA4CD0F63AF53200FFF69546 /* RoomManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AF2C257EF36B2A1C5D70FB1 /* RoomManager.swift */; };
 		FF12E1960FE6D951DFB7A5D2 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D0805778BDDF4F2FA7B582 /* ContentView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0C20E958CF8A0842A040C854 /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = System/Library/Frameworks/Network.framework; sourceTree = SDKROOT; };
-		32E06CF35DD043CA16DAB15B /* GameManager.swift.bak */ = {isa = PBXFileReference; lastKnownFileType = text; path = GameManager.swift.bak; sourceTree = "<group>"; };
 		3368BBC8B1149E4A5CD38937 /* GuanDanApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GuanDanApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		35D4EFB49F1DD132CC3DC8DA /* MatchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchManager.swift; sourceTree = "<group>"; };
 		395D71EF8236CC5ECFB8CCC7 /* GameManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameManager.swift; sourceTree = "<group>"; };
 		4B019276E7F9FC6350277EE7 /* Types.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Types.swift; sourceTree = "<group>"; };
 		8AF2C257EF36B2A1C5D70FB1 /* RoomManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomManager.swift; sourceTree = "<group>"; };
+		A11B2C3D4E5F6789ABCD0002 /* Resources/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
 		A218A7DD1212B0A72036E97A /* ServerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerViewModel.swift; sourceTree = "<group>"; };
 		A3705BEE0EE9D16BA93260DF /* HTTPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPServer.swift; sourceTree = "<group>"; };
 		A72FEFF1FD2E8B6AD0B012EA /* Deck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Deck.swift; sourceTree = "<group>"; };
 		C0D0805778BDDF4F2FA7B582 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		D7DB4EF431AC861DE9C3A0C0 /* Bot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bot.swift; sourceTree = "<group>"; };
 		E1379DD96EC2977B7A7ECF47 /* Rules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Rules.swift; sourceTree = "<group>"; };
+		E5FB83B4E0F2019D8C83FCF6 /* GameLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameLogger.swift; sourceTree = "<group>"; };
 		F4DFE237D110D4BC91308B2D /* WebAssets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebAssets.swift; sourceTree = "<group>"; };
 		F5410BD5E893DF1BBE9F5962 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		FD1A770ED845172FAF074585 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
@@ -63,6 +65,7 @@
 				A72FEFF1FD2E8B6AD0B012EA /* Deck.swift */,
 				E1379DD96EC2977B7A7ECF47 /* Rules.swift */,
 				4B019276E7F9FC6350277EE7 /* Types.swift */,
+				E5FB83B4E0F2019D8C83FCF6 /* GameLogger.swift */,
 			);
 			name = GameCore;
 			path = Sources/GameCore;
@@ -85,16 +88,24 @@
 				091CBE6A4BABA4BDECBA5F8C /* GameCore */,
 				C8B424B61746D1F63E3EA157 /* GameServer */,
 				1BF70B74D061FEA9D884D2F8 /* GuanDanApp */,
+				A11B2C3D4E5F6789ABCD0003 /* Resources */,
 				CFA50FFCBC1BC239311670E2 /* Frameworks */,
 				F442EE656016FFD4B653F8DF /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		A11B2C3D4E5F6789ABCD0003 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A11B2C3D4E5F6789ABCD0002 /* Resources/Assets.xcassets */,
+			);
+			name = Resources;
 			sourceTree = "<group>";
 		};
 		C8B424B61746D1F63E3EA157 /* GameServer */ = {
 			isa = PBXGroup;
 			children = (
 				395D71EF8236CC5ECFB8CCC7 /* GameManager.swift */,
-				32E06CF35DD043CA16DAB15B /* GameManager.swift.bak */,
 				A3705BEE0EE9D16BA93260DF /* HTTPServer.swift */,
 				35D4EFB49F1DD132CC3DC8DA /* MatchManager.swift */,
 				8AF2C257EF36B2A1C5D70FB1 /* RoomManager.swift */,
@@ -176,7 +187,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				680B960B0D8F958400F47955 /* GameManager.swift.bak in Resources */,
+				A11B2C3D4E5F6789ABCD0001 /* Resources/Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -191,6 +202,7 @@
 				77A08AD1C4D1136ED414BFDE /* Bot.swift in Sources */,
 				FF12E1960FE6D951DFB7A5D2 /* ContentView.swift in Sources */,
 				393BB3586D286D01EA410103 /* Deck.swift in Sources */,
+				DBD8420CDA4AE4A4846E0948 /* GameLogger.swift in Sources */,
 				A3E0BDF1B873C58C398B9EC4 /* GameManager.swift in Sources */,
 				C307621E88FCC203B508EDAB /* HTTPServer.swift in Sources */,
 				50F2A25105C8AF0CEFC67EE1 /* MatchManager.swift in Sources */,

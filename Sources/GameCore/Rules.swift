@@ -288,3 +288,8 @@ public func handDescription(_ hand: Hand) -> String {
     }
     return desc
 }
+
+/// Short card description for logging: "♠A", "♥2", "🃏小王"
+public func cardDesc(_ card: Card) -> String {
+    return "\(card.suit.symbol)\(card.rank.display)"
+}

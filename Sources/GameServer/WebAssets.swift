@@ -64,6 +64,7 @@ enum WebAssets {
           <div class=\"play-zone\" id=\"playZone\">
             <div id=\"lastPlayInfo\">等待出牌...</div>
             <div id=\"tributeUI\" style=\"display:none\"></div>
+            <div id=\"resultOverlay\" style=\"display:none\"></div>
           </div>
           <div class=\"player-area\" id=\"area-player3\">
             <span class=\"player-tag\" id=\"tag-player3\">Bot 3</span>
@@ -151,19 +152,23 @@ button:not(.primary):not(.danger):not(.active){background:#0f3460;color:#ccc}
 .play-zone .played-cards{display:flex;gap:1px;flex-wrap:wrap;justify-content:center}
 .play-zone #lastPlayInfo{font-size:11px;color:#888}
 
-/* Card rendering - small for phone landscape */
-.my-hand{z-index:1;padding:3px 2px;display:flex;flex-wrap:wrap;justify-content:center;align-content:flex-start;gap:1px;flex-shrink:0;min-height:40px;max-height:90px;overflow-y:auto}
-.card{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:24px;height:38px;border-radius:3px;background:#fff;color:#000;font-size:9px;font-weight:700;border:1px solid #ccc;transition:transform .1s;flex-shrink:0}
+/* Card rendering - optimized for phone readability */
+.my-hand{z-index:1;padding:4px 2px;display:flex;flex-wrap:wrap;justify-content:center;align-content:flex-start;gap:2px;flex-shrink:0;min-height:44px;max-height:130px;overflow-y:auto}
+.card{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:34px;height:52px;border-radius:4px;background:#fff;color:#1a1a1a;font-size:11px;font-weight:700;border:1.5px solid #bbb;transition:transform .1s;flex-shrink:0}
 .card.red{color:#d32f2f}
-.card.selected{transform:translateY(-8px);border-color:#ff6b6b;box-shadow:0 2px 8px rgba(255,107,107,.5)}
+.card.suit-spades{color:#0d0d0d}
+.card.suit-clubs{color:#1b5e20}
+.card.selected{transform:translateY(-10px);border-color:#ff6b6b;box-shadow:0 2px 10px rgba(255,107,107,.5)}
 .card.wild{border-color:#ff9800}
 .card.new-highlight{animation:pulse .8s ease-in-out 3}
 @keyframes pulse{0%,100%{border-color:#ff6b6b}50%{border-color:#ffd700}}
-.card .suit-top{font-size:8px;line-height:1}
-.card .rank{font-size:11px;line-height:1.2}
+.card .suit-top{font-size:11px;line-height:1;font-weight:700}
+.card .rank{font-size:14px;line-height:1.2;font-weight:800}
 .card.joker{background:linear-gradient(135deg,#ffd700,#ff6b6b);color:#000}
-.small-card{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:18px;height:27px;border-radius:2px;background:#fff;color:#000;font-size:7px;font-weight:700;border:1px solid #aaa;flex-shrink:0}
+.small-card{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:22px;height:34px;border-radius:3px;background:#fff;color:#1a1a1a;font-size:9px;font-weight:700;border:1px solid #aaa;flex-shrink:0}
 .small-card.red{color:#d32f2f}
+.small-card.suit-spades{color:#0d0d0d}
+.small-card.suit-clubs{color:#1b5e20}
 .small-card.joker{background:linear-gradient(135deg,#ffd700,#ff6b6b)}
 
 /* Action bar - compact */
@@ -178,15 +183,25 @@ button:not(.primary):not(.danger):not(.active){background:#0f3460;color:#ccc}
 #tributeUI{display:flex;gap:2px;flex-wrap:wrap;justify-content:center}
 #tributeUI .tribute-card{cursor:pointer}
 
+#resultOverlay{text-align:center;padding:8px 12px;background:linear-gradient(135deg,#1a1a2e,#16213e);border:2px solid #ffd700;border-radius:10px;color:#ffd700;font-size:13px;line-height:1.6}
+#resultOverlay .title{font-size:15px;font-weight:bold;margin-bottom:4px}
+#resultOverlay .rankings{color:#fff;margin:4px 0}
+#resultOverlay .level-up{color:#4fc3f7;font-weight:bold;margin:4px 0}
+#resultOverlay .countdown{color:#ff6b6b;margin-top:4px;font-size:12px}
+#resultOverlay .level-row{display:flex;justify-content:center;gap:16px;margin:4px 0;font-size:12px}
+#resultOverlay .level-row span{color:#ddd}
+
 /* Landscape optimization */
 @media(orientation:landscape){
-  .card{width:22px;height:36px;font-size:8px}
-  .card .rank{font-size:10px}
-  .my-hand{z-index:1;gap:1px;max-height:80px}
+  .card{width:30px;height:48px;font-size:10px}
+  .card .rank{font-size:13px}
+  .card .suit-top{font-size:10px}
+  .my-hand{z-index:1;gap:2px;max-height:110px}
 }
 @media(min-width:800px){
-  .card{width:28px;height:42px;font-size:10px}
-  .card .rank{font-size:13px}
+  .card{width:38px;height:56px;font-size:12px}
+  .card .rank{font-size:16px}
+  .card .suit-top{font-size:12px}
 }
 button.my-turn{background:#ffd700!important;color:#000!important;animation:glow 0.8s ease-in-out infinite}
 @keyframes glow{0%,100%{box-shadow:0 0 4px #ffd700}50%{box-shadow:0 0 16px #ff6b6b}}
@@ -247,12 +262,18 @@ function connectSSE() {
   sseSource.addEventListener('matchStarted', e => { console.log('Match started'); });
   sseSource.addEventListener('matchOver', e => onMatchOver(JSON.parse(e.data)));
   sseSource.addEventListener('gameOver', e => onGameOver(JSON.parse(e.data)));
+  sseSource.addEventListener('gameResult', e => onGameResult(JSON.parse(e.data)));
   sseSource.addEventListener('chatMessage', e => onChatMessage(JSON.parse(e.data)));
   sseSource.addEventListener('gameTerminated', e => backToLobby());
   sseSource.addEventListener('error', e => {
     try { const d = JSON.parse(e.data); showToast(d.message || 'Error'); } catch(_) {}
   });
-  sseSource.onerror = () => { if (!state.inGame) { setTimeout(connectSSE, 3000); } };
+  sseSource.onerror = () => {
+    if (sseSource.readyState === EventSource.CLOSED) {
+      console.log('SSE disconnected, reconnecting in 2s...');
+      setTimeout(connectSSE, 2000);
+    }
+  };
 }
 
 // === UI: Lobby ===
@@ -393,7 +414,7 @@ function renderGameBoard(data) {
     cd.className = 'played-cards';
     (h.cards || []).forEach(c => {
       const el = document.createElement('span');
-      el.className = 'small-card' + (isRed(c) ? ' red' : '');
+      el.className = 'small-card' + (isRed(c) ? ' red' : '') + (c.suit===0?' suit-spades':'') + (c.suit===2?' suit-clubs':'');
       if (c.rank >= 15) el.className += ' joker';
       el.textContent = cardDesc(c);
       cd.appendChild(el);
@@ -413,7 +434,7 @@ function renderGameBoard(data) {
     if (myItem) {
       tribUI.innerHTML = '<div style=\"font-size:13px;color:#ffd700;\">请选择一张牌' + (state.gamePhase === 'tribute' ? '进贡' : '还贡') + '</div>' +
         state.myHand.map(c =>
-          '<span class=\"tribute-card small-card' + (isRed(c)?' red':'') + '\" data-id=\"' + c.id + '\" onclick=\"selectTribute(\\'' + c.id + '\\')\">' + cardDesc(c) + '</span>'
+          '<span class=\"tribute-card small-card' + (isRed(c)?' red':'') + (c.suit===0?' suit-spades':'') + (c.suit===2?' suit-clubs':'') + '\" data-id=\"' + c.id + '\" onclick=\"selectTribute(\\'' + c.id + '\\')\">' + cardDesc(c) + '</span>'
         ).join('');
     } else {
       tribUI.innerHTML = '<div style=\"font-size:13px;\">等待其他玩家...</div>';
@@ -442,7 +463,7 @@ function renderMyHand() {
   state.myHand.forEach(c => {
     const el = document.createElement('span');
     const isSel = state.selectedCards.has(c.id);
-    el.className = 'card' + (isRed(c) ? ' red' : '') + (isSel ? ' selected' : '') + (isWildCard(c) ? ' wild' : '') + (state.newCardIds.has(c.id) ? ' new-highlight' : '');
+    el.className = 'card' + (isRed(c) ? ' red' : '') + (c.suit===0?' suit-spades':'') + (c.suit===2?' suit-clubs':'') + (isSel ? ' selected' : '') + (isWildCard(c) ? ' wild' : '') + (state.newCardIds.has(c.id) ? ' new-highlight' : '');
     if (c.rank >= 15) el.className += ' joker';
     el.innerHTML = '<span class=\"suit-top\">' + SUITS[c.suit] + '</span><span class=\"rank\">' + RANKS[c.rank] + '</span>';
     el.setAttribute('data-id', c.id);
@@ -524,6 +545,55 @@ function onGameOver(data) {
   const winners = data.winners || [];
   const pos = winners.indexOf(state.mySeat);
   showToast(pos === 0 ? '恭喜第一！' : '排名: ' + (pos + 1));
+}
+
+function onGameResult(data) {
+  const ranks = ['头游','二游','三游','末游'];
+  const winners = data.winners || [];
+  const winnerNames = data.winnerNames || [];
+  const winningTeam = data.winningTeam;
+  const myTeam = state.mySeat % 2;
+  const iWon = winningTeam === myTeam;
+
+  // Winner rankings
+  let rankingHTML = '';
+  for (let i = 0; i < winners.length; i++) {
+    rankingHTML += '<div>' + ranks[i] + '：' + (winnerNames[i] || ('Bot '+winners[i])) + '</div>';
+  }
+
+  // Level info
+  const levelNames = ['','','2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+  const fromName = levelNames[data.levelFrom] || data.levelFrom;
+  const toName = levelNames[data.levelTo] || data.levelTo;
+  const teamNames = ['红队','蓝队'];
+  const levelInfo = data.oldLevels ? (
+    '<div class="level-row">' +
+      '<span>🔴 ' + teamNames[0] + '：打' + (levelNames[data.oldLevels[0]] || data.oldLevels[0]) + '</span>' +
+      '<span>🔵 ' + teamNames[1] + '：打' + (levelNames[data.oldLevels[1]] || data.oldLevels[1]) + '</span>' +
+    '</div>'
+  ) : '';
+
+  const overlay = document.getElementById('resultOverlay');
+  overlay.innerHTML =
+    '<div class="title" style="color:' + (iWon ? '#ffd700' : '#ff6b6b') + '">' +
+      (iWon ? '本局获胜！' : '本局失利') +
+    '</div>' +
+    '<div class="rankings">' + rankingHTML + '</div>' +
+    '<div class="level-up">' +
+      teamNames[winningTeam] + ' 打' + fromName + ' → 打' + toName + '（升' + data.levelIncrease + '级）' +
+    '</div>' +
+    levelInfo +
+    '<div class="countdown" id="resultCountdown">5 秒后开始下一局...</div>';
+  overlay.style.display = '';
+
+  // Countdown
+  let sec = 5;
+  const cd = document.getElementById('resultCountdown');
+  const timer = setInterval(() => {
+    sec--;
+    if (sec <= 0) { clearInterval(timer); overlay.style.display = 'none'; }
+    else { cd.textContent = sec + ' 秒后开始下一局...'; }
+  }, 1000);
 }
 
 function onMatchOver(data) {
